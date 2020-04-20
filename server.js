@@ -5,6 +5,7 @@ let db
 
 app.use(express.urlencoded({extended: false}))
 app.use(express.static('public'))
+app.use(express.json())
 
 let connectionString = 'mongodb+srv://todoAppUser:arif@cluster0-dwjsc.mongodb.net/TodoApp?retryWrites=true&w=majority'
 mongodb.connect(connectionString, {useUnifiedTopology: true}, function(err, client) {
@@ -31,19 +32,22 @@ app.get('/', function(req, res) {
 
     <div class="jumbotron p-3 shadow-sm">
         <form action="/create-item" class="d-flex align-items-center" method="POST">
-            <input type="text" class="form-control mr-3" style="flex: 1;">
+            <input name="item" autocomplete="off" type="text" class="form-control mr-3" style="flex: 1;">
             <button class="btn btn-primary">Add New Item</button>
         </form>
     </div>
 
     <ul class="list-group">
-        <li class="list-group-item list-group-item-action d-flex align-items-center justify-content-between">
-            <span class="item-text">Hello</span>
-            <div>
-                <button class="edit-me btn btn-secondary btn-sm mr-1">Edit</button>
-                <button class="delete-me btn btn-danger btn-sm">Delete</button>
-            </div>
-        </li>
+    ${items.map(function(item) {
+        return `<li class="list-group-item list-group-item-action d-flex align-items-center justify-content-between">
+        <span class="text-item">${item.text}</span>
+        <div>
+            <button data-id="${item._id}" class="edit-me btn btn-secondary btn-sm mr-1">Edit</button>
+            <button data-id="${item._id}" class="delete-me btn btn-danger btn-sm">Delete</button>
+        </div>
+    </li>`
+    }).join('')}
+        
     </ul>
 </div>
 
@@ -58,5 +62,11 @@ app.get('/', function(req, res) {
 app.post('/create-item', function(req, res) {
     db.collection('items').insertOne({text: req.body.item}, function() {
         res.redirect('/')
+    })
+})
+
+app.post('/update-item', function(req, res) {
+    db.collection('items').findOneAndUpdate({_id: new mongodb.OdjectId(req.body.text)}, {$set: {text: req.body.text}}, function() {
+        res.send("Success")
     })
 })
