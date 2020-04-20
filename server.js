@@ -1,5 +1,6 @@
 let express = require('express')
 let mongodb = require('mongodb')
+let sanitizeHTML = require('sanitize-html')
 let app = express()
 let db
 
@@ -7,11 +8,28 @@ app.use(express.urlencoded({extended: false}))
 app.use(express.static('public'))
 app.use(express.json())
 
+let port = process.env.PORT
+
+if (port == null || port == "") {
+    port = 3000
+}
+
 let connectionString = 'mongodb+srv://todoAppUser:arif@cluster0-dwjsc.mongodb.net/TodoApp?retryWrites=true&w=majority'
 mongodb.connect(connectionString, {useUnifiedTopology: true}, function(err, client) {
     db = client.db()
-    app.listen(3000)
+    app.listen(port)
 })
+
+function passwordProtected(req, res, next) {
+    res.set('WWW-Authenticate', 'Basic realm="Simple Todo App"')
+    if (req.headers.authorization == "Basic YXJpZjphcmlm") {
+        next()
+    } else {
+        res.status(401).send("Authentication required")
+    }
+}
+
+app.use(passwordProtected)
 
 app.get('/', function(req, res) {
     db.collection('items').find().toArray(function(err, items) {
@@ -31,26 +49,17 @@ app.get('/', function(req, res) {
     <h1 class="display-4 text-center py-1">TODO APP ARIF</h1>
 
     <div class="jumbotron p-3 shadow-sm">
-        <form action="/create-item" class="d-flex align-items-center" method="POST">
-            <input name="item" autocomplete="off" type="text" class="form-control mr-3" style="flex: 1;">
+        <form id="create-form" action="/create-item" class="d-flex align-items-center" method="POST">
+            <input id="create-field" name="item" autocomplete="off" type="text" class="form-control mr-3" style="flex: 1;">
             <button class="btn btn-primary">Add New Item</button>
         </form>
     </div>
 
-    <ul class="list-group">
-    ${items.map(function(item) {
-        return `<li class="list-group-item list-group-item-action d-flex align-items-center justify-content-between">
-        <span class="text-item">${item.text}</span>
-        <div>
-            <button data-id="${item._id}" class="edit-me btn btn-secondary btn-sm mr-1">Edit</button>
-            <button data-id="${item._id}" class="delete-me btn btn-danger btn-sm">Delete</button>
-        </div>
-    </li>`
-    }).join('')}
-        
+    <ul id="item-list" class="list-group"> 
     </ul>
 </div>
 
+<script>let items = ${JSON.stringify(items)}</script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script src="/browser.js"></script>
 </body>
@@ -60,13 +69,21 @@ app.get('/', function(req, res) {
 })
 
 app.post('/create-item', function(req, res) {
-    db.collection('items').insertOne({text: req.body.item}, function() {
-        res.redirect('/')
+    let safeText = sanitizeHTML(req.body.text, {allowedTags: [], allowedAttributes: []})
+    db.collection('items').insertOne({text: safeText}, function(err, info) {
+        res.json(info.ops[0])
     })
 })
 
 app.post('/update-item', function(req, res) {
-    db.collection('items').findOneAndUpdate({_id: new mongodb.OdjectId(req.body.text)}, {$set: {text: req.body.text}}, function() {
+    let safeText = sanitizeHTML(req.body.text, {allowedTags: [], allowedAttributes: []})
+    db.collection('items').findOneAndUpdate({_id: new mongodb.ObjectId(req.body.id)}, {$set: {text: safeText}}, function() {
+        res.send("Success")
+    })
+})
+
+app.post('/delete-item', function(req, res) {
+    db.collection('items').deleteOne({_id: new mongodb.ObjectId(req.body.id)}, function() {
         res.send("Success")
     })
 })
